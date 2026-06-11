@@ -56,17 +56,47 @@ The system reduces human exposure to hazardous chemicals by automating the neutr
 
 The system consists of three main modules:
 
-- Sensing Unit
+# Sensing Unit
+- Collects real-time data (pH, temperature, etc.)
+- Sends data to ESP8266
+  
+# Control Unit
+- Processes sensor data
+- Controls pump/relay for neutralization
+  
+# IoT Monitoring Unit
+- Sends data to web dashboard
+- Allows remote monitoring and alerts
+  
+## 🔌 Circuit Diagram
+Add your circuit diagram image below
+  
+ESP8266 → Sensors → Relay → Pump System
+     ↓
+WiFi → Web Dashboard
 
-Collects real-time data (pH, temperature, etc.)
-Sends data to ESP8266
+##  ⚙️ Working Principle
+- Sensors continuously monitor NBF waste condition
+- ESP8266 reads and processes sensor data
+- If unsafe levels are detected, neutralization is activated
+- Pump/relay system performs chemical neutralization
+- Data is sent to web dashboard via WiFi
+- User can monitor system remotely in real time
+  
+##  🚀 Installation & Setup
+# Step 1: Install Arduino IDE
+Download: https://www.arduino.cc/en/software
 
-- Control Unit
+# Step 2: Add ESP8266 Board Manager
+http://arduino.esp8266.com/stable/package_esp8266com_index.json
 
-Processes sensor data
-Controls pump/relay for neutralization
+# Step 3: Install Libraries
+Install from Library Manager:
 
-- IoT Monitoring Unit
+- ESP8266WiFi
+- ESP8266WebServer
+- WebSocketsServer
 
-Sends data to web dashboard
-Allows remote monitoring and alerts
+## 👨‍🔬 Author
+
+Chandana Deshapriya: Lecturer | Software Engineer | IoT Consultant
