@@ -1,0 +1,36 @@
+These libraries are used for sensor communication, temperature monitoring, LCD display control, serial communication, 
+real-time clock management, and event scheduling within the Automated NBF Waste Neutralization System.
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <LCDWIKI_GUI.h>
+#include <LCDWIKI_KBV.h>
+#include <SoftwareSerial.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+
+| Library                 | Description                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **OneWire.h**           | Enables communication with devices using the One-Wire protocol, such as DS18B20 temperature sensors.                                       |
+| **DallasTemperature.h** | Provides functions to read temperature data from Dallas/Maxim DS18B20 temperature sensors.                                                 |
+| **LCDWIKI_GUI.h**       | Contains graphical user interface functions for LCD displays, including drawing shapes, text, and graphics.                                |
+| **LCDWIKI_KBV.h**       | Controls and manages TFT LCD displays supported by the LCDWIKI library.                                                                    |
+| **SoftwareSerial.h**    | Creates additional serial communication ports on digital pins, allowing communication with devices such as GSM, GPS, or Bluetooth modules. |
+| **TimeLib.h**           | Provides timekeeping functions for managing dates, times, and clocks in Arduino projects.                                                  |
+| **TimeAlarms.h**        | Allows scheduling of timed events and alarms based on the system clock.                                                                    |
+
+These libraries are used to enable WiFi connectivity, web server functionality, real-time WebSocket communication,
+and serial communication for the ESP8266-based IoT system.
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <WebSocketsServer.h>
+#include <SoftwareSerial.h> description 
+| Library                | Description                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **ESP8266WiFi.h**      | Provides WiFi connectivity functions for the ESP8266 module, allowing it to connect to wireless networks.                        |
+| **WiFiClient.h**       | Enables the ESP8266 to act as a client for TCP/IP connections over WiFi.                                                         |
+| **ESP8266WebServer.h** | Allows the creation of a web server on the ESP8266 to handle HTTP requests and serve web pages.                                  |
+| **WebSocketsServer.h** | Implements WebSocket communication for real-time, bidirectional data exchange between server and client.                         |
+| **SoftwareSerial.h**   | Creates additional serial communication ports on digital pins for interfacing with external modules like GSM, GPS, or Bluetooth. |
+
