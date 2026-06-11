@@ -1,0 +1,45 @@
+const int trigPin1 = 26;
+const int echoPin1 = 28;
+
+const int trigPin2 = 34;
+const int echoPin2 = 36;
+
+long duration;
+
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(trigPin1, OUTPUT);
+  pinMode(echoPin1, INPUT);
+
+  pinMode(trigPin2, OUTPUT);
+  pinMode(echoPin2, INPUT);
+}
+
+long getDistance(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(20);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(6);
+  digitalWrite(trig, LOW);
+
+  duration = pulseIn(echo, HIGH);
+  return duration * 0.034 / 2;
+}
+
+void loop() {
+  float d1 = getDistance(trigPin1, echoPin1);
+  float d2 = getDistance(trigPin2, echoPin2);
+
+  Serial.print("Sensor 1: ");
+  Serial.print(d1);
+  Serial.println(" cm");
+
+  Serial.print("Sensor 2: ");
+  Serial.print(d2);
+  Serial.println(" cm");
+
+  delay(500);
+}
+

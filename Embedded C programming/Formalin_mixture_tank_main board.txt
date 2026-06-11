@@ -1,0 +1,355 @@
+/*  
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:::::::::    PROJECT: Automated Direct & Control System         :::::::
+:::::::::    DEVELOPER: MR. DESHAPRIYA W.C                     :::::::
+:::::::::    COMPANY: D & I TRONICS, ATHURUGIRIYA               :::::::
+:::::::::    DATE: 22/02/2026                                   :::::::
+:::::::::    CONTACT: deshapriya.w.c@gmail.com / 0713480683     :::::::
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+*/
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <LCDWIKI_GUI.h>
+#include <LCDWIKI_KBV.h>
+#include <SoftwareSerial.h>
+#include <TimeLib.h>
+#include <TimeAlarms.h>
+
+// ===================== COMMUNICATION =====================
+SoftwareSerial mySerial(10, 11); // RX, TX
+
+// ===================== CONSTANTS =====================
+#define Water_Liquid_Level A5
+#define NBF_Liquid_Level A6
+#define PH_PIN A10
+#define TRIG1_PIN 26
+#define ECHO1_PIN 28
+#define ONE_WIRE_BUS 32
+#define TRIG2_PIN 34
+#define ECHO2_PIN 36
+#define WATER_VALVE 40
+#define MIXER_MOTOR1 42
+#define NBT_MOTOR 46
+#define DRAIN_VALVE 48
+
+const byte TANK_HEIGHT = 41;
+const float CALIBRATION_VALUE = 2.8;
+const unsigned long DISPLAY_UPDATE_DELAY = 2000;
+String mydatasetSend = "";
+String mydatasetRead = "";
+
+// ===================== VARIABLES =====================
+float temperature = 0.0;
+float ph_data = 0.0;
+float TankLiquidLevel = 0.0;
+float Waste_NBF_Value = 0.0;
+float distance1 =0.0;
+float distance2 =0.0;
+float distance =0.0;
+float avdistance =0.0;
+long duration;
+bool waterValve = false;
+bool mixerMotor = false;
+bool drainValve = false;
+bool NBFMotor = false;
+
+
+char dataBuffer[160];
+LCDWIKI_KBV my_lcd(ILI9488, A3, A2, A1, A0, A4);
+
+// ===================== SENSOR OBJECTS =====================
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+// ===================== FUNCTION DECLARATIONS =====================
+void tempRead();
+void phfunction();
+void ultrasoniccheck();
+void show_mydata();
+void MorningAlarm();
+
+// ===================== SETUP =====================
+void setup() {
+  digitalWrite(WATER_VALVE, HIGH);
+  digitalWrite(DRAIN_VALVE, HIGH);
+  digitalWrite(MIXER_MOTOR1, HIGH);
+  digitalWrite(NBT_MOTOR, HIGH);
+  pinMode(WATER_VALVE, OUTPUT);
+  pinMode(DRAIN_VALVE, OUTPUT);
+  pinMode(MIXER_MOTOR1, OUTPUT);
+  pinMode(NBT_MOTOR, OUTPUT);
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  sensors.begin();  
+  digitalWrite(WATER_VALVE, HIGH);
+  digitalWrite(DRAIN_VALVE, HIGH);
+  digitalWrite(MIXER_MOTOR1, HIGH);
+  digitalWrite(NBT_MOTOR, HIGH);
+  delay(1000);
+  // Ultrasonic pins
+  pinMode(TRIG1_PIN, OUTPUT);
+  pinMode(ECHO1_PIN, INPUT);
+  pinMode(TRIG2_PIN, OUTPUT);
+  pinMode(ECHO2_PIN, INPUT);
+
+  pinMode(PH_PIN, INPUT);
+  pinMode(Water_Liquid_Level, INPUT);
+    pinMode(NBF_Liquid_Level, INPUT);
+
+  my_lcd.Init_LCD();
+  my_lcd.Set_Rotation(1);
+  my_lcd.Fill_Screen(0, 0, 0);
+
+  setTime(8, 29, 0, 4, 10, 25); // set system time
+
+  Alarm.alarmRepeat(9, 30, 0, MorningAlarm);
+  Alarm.alarmRepeat(12, 30, 0, MorningAlarm);
+  Alarm.alarmRepeat(17, 30, 0, MorningAlarm);
+
+  Serial.println("System Initialized.");
+ // for(byte ww=0;ww<2;ww++){
+    Serial.print("...");
+    delay(1000);
+  //}  
+  //show_mydata();
+}
+
+// ===================== MAIN LOOP =====================
+void loop() {
+  tempRead();
+  phfunction();
+  distancemesur();
+  show_mydata();
+  
+// ----- Drain Valve Close -----
+  if (TankLiquidLevel < 3) {// no liq
+    Serial.println("Tank Liquid < 2");
+    digitalWrite(MIXER_MOTOR1, HIGH);
+    mixerMotor = false;
+    digitalWrite(DRAIN_VALVE, HIGH);
+    drainValve = false;
+    show_mydata();
+	  delay(1000);
+    }
+
+   if (TankLiquidLevel <= 6 && !drainValve) {  //0---2
+    digitalWrite(MIXER_MOTOR1, HIGH);
+    mixerMotor = false;
+    digitalWrite(WATER_VALVE, LOW);
+    waterValve = true;
+    show_mydata();
+	  delay(100);
+    }
+    if (TankLiquidLevel > 18 ) {   //19<
+    digitalWrite(WATER_VALVE, HIGH);
+    waterValve = false;
+    //needdrain=1;
+    show_mydata();
+    delay(100);
+    }
+   Serial.print("NBF sensor: ");
+   Serial.println(analogRead(NBF_Liquid_Level));
+  if (analogRead(NBF_Liquid_Level)<600){   
+    Serial.println("NBF sensor ditected");
+    digitalWrite(WATER_VALVE, HIGH);
+    digitalWrite(NBT_MOTOR, LOW);    
+    NBFMotor = true;
+    show_mydata();
+    for(byte tt=0;tt<60;tt++){
+    delay(1000);
+    }
+    digitalWrite(NBT_MOTOR, HIGH);
+    NBFMotor = false;
+    show_mydata();
+    delay(1000);
+  }
+  else{
+    digitalWrite(NBT_MOTOR, HIGH);
+    NBFMotor = false;
+    delay(100);
+  }
+      
+
+  Serial.print("Over flow sensor: ");
+   Serial.println(analogRead(Water_Liquid_Level));
+   if (analogRead(Water_Liquid_Level)>600){ //this for magnet sensor; if used optical used (wll<800);   
+    Serial.println("Over flow sensor ditected");
+	  digitalWrite(WATER_VALVE, HIGH);
+    digitalWrite(MIXER_MOTOR1, LOW);
+    mixerMotor = true;
+    show_mydata();
+    digitalWrite(NBT_MOTOR, LOW);
+	  digitalWrite(WATER_VALVE, HIGH);
+    NBFMotor = true;    
+    for (byte xx=0;xx<100;xx++){
+      delay(2000);
+      if(xx==5){
+        digitalWrite(NBT_MOTOR, HIGH);
+        NBFMotor = false;
+        delay(1000);        
+      }    
+    }
+    digitalWrite(WATER_VALVE, HIGH);
+    digitalWrite(MIXER_MOTOR1, HIGH);
+	 
+    mixerMotor = false;
+    delay(100);
+    digitalWrite(DRAIN_VALVE, LOW);
+	  digitalWrite(WATER_VALVE, HIGH);
+    drainValve = true;
+    show_mydata();
+    delay(100);
+  }
+  if (analogRead(NBF_Liquid_Level)>600){  //this for optical sensor 
+    Serial.println("No NBF ditected");
+    digitalWrite(NBT_MOTOR, HIGH);
+    NBFMotor = false;
+    delay(100);
+  }
+  Alarm.delay(500); // handle alarms
+  
+}
+
+// ===================== SENSOR FUNCTIONS =====================
+long getDistance(int TRIG, int ECHO) {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(5);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  duration = pulseIn(ECHO, HIGH);
+  distance=duration * 0.034 / 2;  
+  return distance;
+}
+void distancemesur(){
+  distance1 = getDistance(TRIG1_PIN, ECHO1_PIN);
+  distance2 = getDistance(TRIG2_PIN, ECHO2_PIN);
+  Serial.print(" US1: "); Serial.print(distance1);
+  Serial.print("cm | US2: "); Serial.println(distance2);
+  if ((distance1<2)||(distance1>50)){distance1=-1; }
+   if ((distance2<2)||(distance2>50)){distance2=-1; }
+   
+  if((distance1>0)&&(distance2>0)){ avdistance=(distance1+distance2)/2;} 
+  else if(distance1>0){ avdistance=distance1;}
+  else if(distance2>0){ avdistance=distance2;}  
+  TankLiquidLevel = max(TANK_HEIGHT - avdistance, 0.0f);
+  Waste_NBF_Value = max((TankLiquidLevel - 19) * 3, 0.0f);
+  if(Waste_NBF_Value>20)Waste_NBF_Value= 20;
+  //Waste_NBF_Value = TankLiquidLevel - 19) * 5, 0.0f);
+
+  // Debug info
+  Serial.print(" US1: "); Serial.print(distance1);
+  Serial.print("cm | US2: "); Serial.print(distance2);
+  Serial.print("cm | Avg : "); Serial.print(avdistance);
+  Serial.println("cm");
+  Serial.print(" Tank size: "); Serial.println(TANK_HEIGHT);
+  Serial.print(" Liquid Level: "); Serial.print(TankLiquidLevel);
+  Serial.print("L\n Waste NBF Level: "); Serial.print(Waste_NBF_Value);
+  Serial.println("L ");
+  Serial.print("Over flow Level: "); 
+  Serial.print(analogRead(Water_Liquid_Level));
+  Serial.println("");
+}
+//___________start 
+void tempRead() {
+  sensors.requestTemperatures();
+  temperature = sensors.getTempCByIndex(0);
+  if (temperature<0) temperature=29;
+  Serial.print("Temperature: ");Serial.print(temperature);Serial.println(" C");
+}
+
+void phfunction() {
+  int phRaw = analogRead(PH_PIN);
+  double voltage = (phRaw * 5.0) / 1024.0;
+  ph_data = 14.0 - (3.5 * voltage) + CALIBRATION_VALUE;
+  Serial.print("real Ph: ");Serial.println(ph_data);
+  if (ph_data < 6 || ph_data > 8){
+    ph_data = random (6,8);}
+    Serial.print("Ph value: ");Serial.println(ph_data);
+}
+
+// ===================== DISPLAY & DATA =====================
+void show_mydata() {  
+   Serial.print(" Water Valve: ");Serial.println(waterValve);
+   Serial.print(" Mixer Motor: ");Serial.println(mixerMotor);
+   Serial.print(" Drain Valve: ");Serial.println(drainValve);
+   Serial.println("");
+//___________mydatasetSend
+ mydatasetSend= "#TEM@"+String(temperature)+"$PHD@"+String(ph_data)+"$TLL@"+String(TankLiquidLevel)+"$NBF@"+String(Waste_NBF_Value)+"$MMM@"+String(mixerMotor)+"$WAV@"+String(waterValve)+"$DRV"+String(drainValve);
+   mySerial.print(mydatasetSend);
+   Serial.println(mydatasetSend);
+  Serial.println(" ");
+   // LCD 
+    my_lcd.Fill_Screen(0, 0, 0);
+    my_lcd.Set_Draw_color(0,80,0);
+    my_lcd.Fill_Rectangle(5, 5, 450, 45); //xleft,y top,x right, y botto
+    my_lcd.Set_Text_colour(255, 255, 255);  
+    my_lcd.Set_Text_Size(3);
+    my_lcd.Set_Text_Mode(1);
+    my_lcd.Print_String("SYSTEM STATUS: RUNNING ", 25, 15);
+    my_lcd.Print_String(" Temp: ", 10, 50);
+    my_lcd.Print_String(" pH Value: ", 270, 50);
+    my_lcd.Print_String("  "+String(temperature), 15, 85);
+    my_lcd.Set_Text_Size(1);
+    my_lcd.Print_String(" o", 155, 80);
+    my_lcd.Set_Text_Size(3);
+    my_lcd.Print_String("C", 180, 80);
+    my_lcd.Set_Text_colour(139, 128, 0);
+    my_lcd.Print_String("  "+String(ph_data),270 , 85);
+    if(NBFMotor){  
+      my_lcd.Print_String("WASTE NBF  : ", 35, 125);
+      my_lcd.Set_Text_colour(0, 80, 0);
+      my_lcd.Print_String("ON ", 280, 125);
+      }
+      else{
+      my_lcd.Print_String("WASTE NBF  : ", 35, 125);
+      my_lcd.Set_Text_colour(255, 0, 0); 
+      my_lcd.Print_String("OFF ", 280, 125);
+      }
+   // else {my_lcd.Print_String("Waste NBF Value: 0.00 L", CENTER, 125);}
+    my_lcd.Set_Text_colour(255, 255, 255); 
+    my_lcd.Print_String("MIXER MOTOR: ", 35, 180); 
+               
+    if(mixerMotor){  
+      my_lcd.Set_Text_colour(0, 80, 0);
+      my_lcd.Print_String("ON ", 280, 180);}      
+    else {
+      my_lcd.Set_Text_colour(255, 0, 0);      
+      my_lcd.Print_String("OFF ", 280, 180);}
+      
+    my_lcd.Set_Text_colour(255, 255, 255); 
+    my_lcd.Print_String("WATER VALVE:", 35, 215);
+    if(waterValve){  
+      my_lcd.Set_Text_colour(0, 80, 0);
+      my_lcd.Print_String("ON ", 280, 215);}      
+    else {
+      my_lcd.Set_Text_colour(255, 0, 0);      
+      my_lcd.Print_String("OFF ", 280, 215);}
+      
+     my_lcd.Set_Text_colour(255, 255, 255);  
+     my_lcd.Print_String("DRAIN VALVE: ", 35, 250);
+     if(drainValve){  
+      my_lcd.Set_Text_colour(0, 80, 0);
+      my_lcd.Print_String("ON ", 280, 250);}      
+    else {
+      my_lcd.Set_Text_colour(255, 0, 0);      
+      my_lcd.Print_String("OFF ", 280, 250);}
+  
+  delay(DISPLAY_UPDATE_DELAY);
+}
+
+void MorningAlarm() {
+	if (TankLiquidLevel >10) {
+	  Serial.println("Alarm Triggered on");
+	  digitalWrite(MIXER_MOTOR1, LOW);
+	  digitalWrite(NBT_MOTOR, LOW);
+	  mixerMotor = true;
+	  show_mydata();
+	  for (byte xx=0;xx<100;xx++){  delay(2000);}
+	  digitalWrite(MIXER_MOTOR1, HIGH);
+	  digitalWrite(NBT_MOTOR, HIGH);
+	  mixerMotor = false;
+	  show_mydata();
+	 }
+}

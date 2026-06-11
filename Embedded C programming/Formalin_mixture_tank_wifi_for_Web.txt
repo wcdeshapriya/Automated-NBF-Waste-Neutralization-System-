@@ -1,0 +1,183 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <WebSocketsServer.h>
+//#include <Hash.h>
+#include <SoftwareSerial.h>
+
+// ---------------- WIFI SETTINGS ----------------
+const char* ssid = "TankController";
+const char* password = "12345678";
+
+// ---------------- SERIAL COMM ----------------
+SoftwareSerial mySerial(D6, D7); // RX, TX (adjust as needed)
+
+// ---------------- WEB SERVER ----------------
+ESP8266WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+
+// ---------------- VARIABLES ----------------
+String mydatasetSend = "";
+String mydatasetRead = "";
+
+float temperature = 0;
+float ph_data = 0;
+float TankLiquidLevel = 0;
+float Waste_NBF_Value = 0;
+
+int mixerMotor = 0;
+int waterValve = 0;
+int drainValve = 0;
+int ssmixerMotor = 0;
+int sswaterValve = 0;
+int ssdrainValve = 0;
+
+// ---------------- HTML PAGE ----------------
+String buildHtml() {
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta http-equiv='refresh' content='20'>";
+  html += "<title>Formalin (NBF) Disposal System</title>";
+  html += "<style>body{font-family:Arial;background:#f7f7f7;text-align:center;}";
+  html += "table{margin:auto;border-collapse:collapse;width:80%;}";
+  html += "th,td{border:1px solid #999;padding:10px;text-align:left;}";
+  html += "button{margin:10px;padding:10px 20px;background:#008CBA;color:white;border:none;border-radius:5px;cursor:pointer;}";
+  html += "button:hover{background:#005f73;}</style>";
+  html += "</head><body>";
+  html += "<h2>Formalin (NBF) Disposal System</h2>";
+  html += "<table>";
+  html += "<tr><th>Sensor Data</th><th>Outputs</th></tr>";
+  html += "<tr><td>";
+  html += "<p><b>Temperature:</b> " + String(temperature) + " °C</p>";
+  html += "<p><b>pH Value:</b> " + String(ph_data) + "</p>";
+  html += "<p><b>Tank Level:</b> " + String(TankLiquidLevel) + "</p>";
+  html += "<p><b>Waste NBF:</b> " + String(Waste_NBF_Value) + "</p>";
+  html += "</td><td>";
+  html += "<p><b>Mixer Motor:</b> " + String(mixerMotor ? "ON" : "OFF") + "</p>";
+  html += "<p><b>Water Valve:</b> " + String(waterValve ? "ON" : "OFF") + "</p>";
+  html += "<p><b>Drain Valve:</b> " + String(drainValve ? "ON" : "OFF") + "</p>";
+  html += "</td></tr></table>";
+
+  html += "<h3>Manual Controls</h3>";
+  html += "<div style='display:flex;justify-content:center; gap:10px; flex-wrap:wrap;'>";
+  html += "<form action='/startMM' method='POST'><button>Start Mixer</button></form>";
+  html += "<form action='/stopMM' method='POST'><button>Stop Mixer</button></form>";
+  html += "</div>";
+  html += "<div style='display:flex;justify-content:center; gap:10px; flex-wrap:wrap;'>"; 
+  html += "<form action='/startWV' method='POST'><button>Water Valve ON</button></form>";
+  html += "<form action='/stopWV' method='POST'><button>Water Valve OFF</button></form>";
+  html += "</div>";
+  html += "<div style='display:flex;justify-content:center; gap:10px; flex-wrap:wrap;'>"; 
+  html += "<form action='/startDV' method='POST'><button>Drain Valve ON</button></form>";
+  html += "<form action='/stopDV' method='POST'><button>Drain Valve OFF</button></form>";
+  html += "</div>";
+  html += "<p style='font-size:12px;color:#666;'></p>";
+  html += "</body></html>";
+
+    ssmixerMotor=mixerMotor;
+    sswaterValve=waterValve;
+    ssdrainValve=drainValve;
+//    mydatasetSend = "$MMM@" + String(ssmixerMotor) + "$WAV@" + String(sswaterValve) +
+//                  "$DRV" + String(ssdrainValve)+"$end";
+//    mySerial.print(mydatasetSend);
+    Serial.println("Sending  Data:");
+    Serial.print("Mixer: "); Serial.println(ssmixerMotor);
+    Serial.print("Water Valve: "); Serial.println(sswaterValve);
+    Serial.print("Drain Valve: "); Serial.println(ssdrainValve);
+  return html;
+  
+}
+
+// ---------------- VALUE PARSER ----------------
+String getValue(String data, String startTag, String endTag) {
+  int startIndex = data.indexOf(startTag);
+  if (startIndex == -1) return "";
+  startIndex += startTag.length();
+  int endIndex = (endTag != "") ? data.indexOf(endTag, startIndex) : data.length();
+  if (endIndex == -1) endIndex = data.length();
+  return data.substring(startIndex, endIndex);
+}
+
+// ---------------- SETUP ----------------
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+
+  // Start WiFi Access Point
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, password);
+  Serial.println("Access Point Started");
+  Serial.println(WiFi.softAPIP());
+
+  // Web routes
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", buildHtml());
+  });
+
+int ssmixerMotor = 0;
+int sswaterValve = 0;
+int ssdrainValve = 0;
+  // Control buttons
+  server.on("/startMM", HTTP_POST, []() { mixerMotor = 1; server.sendHeader("Location", "/"); server.send(303); });
+  server.on("/stopMM", HTTP_POST, []() { mixerMotor = 0; server.sendHeader("Location", "/"); server.send(303); });
+  server.on("/startWV", HTTP_POST, []() { waterValve = 1; server.sendHeader("Location", "/"); server.send(303); });
+  server.on("/stopWV", HTTP_POST, []() { waterValve = 0; server.sendHeader("Location", "/"); server.send(303); });
+  server.on("/startDV", HTTP_POST, []() { drainValve = 1; server.sendHeader("Location", "/"); server.send(303); });
+  server.on("/stopDV", HTTP_POST, []() { drainValve = 0; server.sendHeader("Location", "/"); server.send(303); });
+
+  server.begin();
+  webSocket.begin();
+  Serial.println("Web Server Started");
+}
+
+// ---------------- LOOP ----------------
+void loop() {
+  // data sending format to Mega
+  mydatasetSend = "$MMM@" + String(ssmixerMotor) + "$WAV@" + String(sswaterValve) +
+                  "$DRV" + String(ssdrainValve)+"$end";
+  //mySerial.print(mydatasetSend);
+  
+   // Example data reseving format
+// #TEM@29.4$PHD@7.2$TLL@23$NBF@5.6$MMM@1$WAV@0$DRV0$end;
+// #TEM@26.88$PHD@7.64$TLL@25.50$NBF@32.50$MMM@0$WAV@0$DRV0
+
+//   --- Read and parse serial data ---
+  if (mySerial.available()) {
+    mydatasetRead = mySerial.readStringUntil('\n');
+    mydatasetRead.trim();
+    Serial.println("Received line:\n " + mydatasetRead);
+//  }
+//
+// if (Serial.available()) {
+//    mydatasetRead = Serial.readStringUntil('\n');
+//    mydatasetRead.trim();
+//    Serial.println("Received line: " + mydatasetRead);
+
+    temperature      = getValue(mydatasetRead, "#TEM@", "$PHD@").toFloat();
+    ph_data          = getValue(mydatasetRead, "$PHD@", "$TLL@").toFloat();
+    TankLiquidLevel  = getValue(mydatasetRead, "$TLL@", "$NBF@").toFloat();
+    Waste_NBF_Value  = getValue(mydatasetRead, "$NBF@", "$MMM@").toFloat();
+    mixerMotor       = getValue(mydatasetRead, "$MMM@", "$WAV@").toInt();
+    waterValve       = getValue(mydatasetRead, "$WAV@", "$DRV").toInt();
+    drainValve       = getValue(mydatasetRead, "$DRV", "$end").toInt();
+    
+    Serial.println("Data Set:");
+    Serial.print("Temp: "); Serial.println(temperature);
+    Serial.print("pH: "); Serial.println(ph_data);
+    Serial.print("Liquid Level: "); Serial.println(TankLiquidLevel);
+    Serial.print("NBF Level: "); Serial.println(Waste_NBF_Value);
+    Serial.print("Water Valve: "); Serial.println(waterValve);
+    Serial.print("Mixer Motor: "); Serial.println(mixerMotor);    
+    Serial.print("Drain Valve: "); Serial.println(drainValve);
+    Serial.println("-------------Sending  Data---------------");
+    Serial.print("Mixer Motor: "); Serial.println(ssmixerMotor);
+    Serial.print("Water Valve: "); Serial.println(sswaterValve);
+    Serial.print("Drain Valve: "); Serial.println(ssdrainValve);
+    
+ }
+
+  server.handleClient();
+  webSocket.loop();
+
+}
+
