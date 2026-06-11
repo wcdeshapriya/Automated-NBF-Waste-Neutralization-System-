@@ -50,6 +50,8 @@ The system reduces human exposure to hazardous chemicals by automating the neutr
 #include <WebSocketsServer.h>
 #include <SoftwareSerial.h>
 
+```
+
 ## 🏗️ System Architecture
 
 The system consists of three main modules:
